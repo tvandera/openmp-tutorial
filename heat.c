@@ -5,7 +5,7 @@
 ** PURPOSE: This program will explore use of an explicit
 **          finite difference method to solve the heat
 **          equation under a method of manufactured solution (MMS)
-**          scheme. The solution has been set to be a simple 
+**          scheme. The solution has been set to be a simple
 **          function based on exponentials and trig functions.
 **
 **          A finite difference scheme is used on a 1000x1000 cube.
@@ -130,6 +130,7 @@ int main(int argc, char *argv[]) {
 
   // Start the solve timer
   double tic = omp_get_wtime();
+#pragma omp target enter data map(to:u[0:n*n], u_tmp[0:n*n])
   for (int t = 0; t < nsteps; ++t) {
 
     // Call the solve kernel
@@ -142,6 +143,9 @@ int main(int argc, char *argv[]) {
     u = u_tmp;
     u_tmp = tmp;
   }
+
+#pragma omp target exit data map(from:u[0:n*n])
+
   // Stop solve timer
   double toc = omp_get_wtime();
 
@@ -204,18 +208,20 @@ void solve(const int n, const double alpha, const double dx, const double dt, co
   const double r2 = 1.0 - 4.0*r;
 
   // Loop over the nxn grid
-  for (int i = 0; i < n; ++i) {
-    for (int j = 0; j < n; ++j) {
+#pragma omp target
+#pragma omp loop collapse(2)
+    for (int i = 0; i < n; ++i) {
+      for (int j = 0; j < n; ++j) {
 
-      // Update the 5-point stencil, using boundary conditions on the edges of the domain.
-      // Boundaries are zero because the MMS solution is zero there.
-      u_tmp[i+j*n] =  r2 * u[i+j*n] +
-      r * ((i < n-1) ? u[i+1+j*n] : 0.0) +
-      r * ((i > 0)   ? u[i-1+j*n] : 0.0) +
-      r * ((j < n-1) ? u[i+(j+1)*n] : 0.0) +
-      r * ((j > 0)   ? u[i+(j-1)*n] : 0.0);
+        // Update the 5-point stencil, using boundary conditions on the edges of the domain.
+        // Boundaries are zero because the MMS solution is zero there.
+        u_tmp[i+j*n] =  r2 * u[i+j*n] +
+        r * ((i < n-1) ? u[i+1+j*n] : 0.0) +
+        r * ((i > 0)   ? u[i-1+j*n] : 0.0) +
+        r * ((j < n-1) ? u[i+(j+1)*n] : 0.0) +
+        r * ((j > 0)   ? u[i+(j-1)*n] : 0.0);
+      }
     }
-  }
 }
 
 
